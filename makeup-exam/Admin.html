@@ -16,7 +16,7 @@
   button{padding:9px 16px;border:0;border-radius:8px;background:var(--pri);color:#fff;font:600 .95rem inherit;cursor:pointer;margin-top:10px}
   button.sec{background:#e9edf8;color:var(--ink)} button.danger{background:var(--err);padding:5px 10px;margin:0}
   button:disabled{opacity:.5}
-  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap} .tabs button{margin:0;background:#e9edf8;color:var(--ink)} .tabs button.on{background:var(--pri);color:#fff}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap} .tabs button{margin:0;background:#e9edf8;color:var(--ink)} .tabs button.on{background:var(--pri);color:#fff} .tabs button.out{margin-left:auto;background:#fff;color:var(--err);border:1px solid var(--err)}
   .msg{margin-top:10px;font-weight:600} .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
   table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
   th{background:#f0f3fb} tr.w td{color:#999;text-decoration:line-through}
@@ -39,6 +39,7 @@
       <button id="t_apps" class="on" onclick="tab('apps')">Applications</button>
       <button id="t_set" onclick="tab('set')">Settings</button>
       <button id="t_ros" onclick="tab('ros')">Student lists</button>
+      <button class="out" onclick="logout()">Sign out</button>
     </div>
 
     <div id="p_apps" class="card">
@@ -91,6 +92,14 @@ function msg(id,m,ok){ const e=$(id); e.textContent=m||''; e.className='msg '+(o
 function tab(n){ ['apps','set','ros'].forEach(x=>{ $('p_'+x).hidden=x!==n; $('t_'+x).className=x===n?'on':''; }); }
 function guard(btn,id){ return e=>{ btn.disabled=false; const m=(e&&e.message)||'Error'; msg(id,m); if(/Session expired/.test(m)){ T=''; $('app').hidden=true; $('login').hidden=false; } }; }
 
+function logout(){
+  const t=T; T=''; D=null;
+  google.script.run.adminLogout(t);
+  $('app').hidden=true; $('login').hidden=false;
+  ['amsg','smsg','rmsg','lmsg'].forEach(i=>msg(i,''));
+  $('rows').innerHTML=''; $('r_text').value=''; $('q').value=''; tab('apps');
+  msg('lmsg','You have signed out.',true);
+}
 function login(){
   $('bl').disabled=true; msg('lmsg','');
   google.script.run.withSuccessHandler(t=>{ T=t; $('bl').disabled=false; $('pw').value=''; $('login').hidden=true; $('app').hidden=false; load(); })

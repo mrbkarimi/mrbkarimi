@@ -254,6 +254,10 @@ function adminLogin(pw) {
   c.put('adm_' + t, '1', 21600);
   return t;
 }
+function adminLogout(t) {
+  if (t) CacheService.getScriptCache().remove('adm_' + t);
+  return true;
+}
 function adm_(t) {
   if (!t || !CacheService.getScriptCache().get('adm_' + t)) throw new Error('Session expired. Log in again.');
 }
