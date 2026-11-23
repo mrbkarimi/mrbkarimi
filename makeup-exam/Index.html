@@ -5,9 +5,18 @@
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--mut:#667;--pri:#2b5bd7;--err:#c62828;--ok:#1b7f3b;--line:#d9deea;--warn:#fff4e0}
   *{box-sizing:border-box} [hidden]{display:none!important}
-  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+  body{margin:0;color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif;background-color:#eef2fb;
+    background-image:linear-gradient(90deg,transparent 64px,rgba(214,69,69,.30) 64px,rgba(214,69,69,.30) 66px,transparent 66px),
+      repeating-linear-gradient(180deg,transparent 0,transparent 31px,rgba(43,91,215,.10) 31px,rgba(43,91,215,.10) 32px),
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260' viewBox='0 0 260 260' fill='none' stroke='%232b5bd7' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' opacity='.13'><g transform='translate(24 28) rotate(-35)'><path d='M0 0h46v12H0z'/><path d='M46 0l14 6-14 6z'/><path d='M8 0v12'/></g><g transform='translate(150 24)'><circle cx='10' cy='10' r='9'/><circle cx='38' cy='10' r='9'/><circle cx='66' cy='10' r='9'/><path d='M5 10l4 4 7-8'/></g><g transform='translate(30 120)'><rect x='0' y='0' width='44' height='56' rx='4'/><path d='M8 14h28M8 26h28M8 38h18'/></g><g transform='translate(160 110)'><circle cx='26' cy='26' r='24'/><path d='M26 12v15l10 6'/></g><g transform='translate(100 200)'><path d='M0 18l30-14 30 14-30 14z'/><path d='M12 24v14c10 8 26 8 36 0V24'/></g><text x='196' y='214' font-size='34' font-family='Georgia,serif' fill='%232b5bd7' stroke='none'>A+</text></svg>");
+    background-attachment:fixed}
+  @media(max-width:700px){body{background-image:repeating-linear-gradient(180deg,transparent 0,transparent 31px,rgba(43,91,215,.10) 31px,rgba(43,91,215,.10) 32px)}}
+  .head{background:linear-gradient(135deg,#2b5bd7,#1b3a99);color:#fff;padding:20px 24px;border-radius:14px 14px 0 0;display:flex;gap:16px;align-items:center}
+  .head h1{color:#fff;margin:0;font-size:1.3rem;line-height:1.25} .head small{opacity:.85;display:block;margin-top:2px}
+  .head svg{flex:none;width:46px;height:46px}
+  .pad{padding:24px}
   .wrap{max-width:640px;margin:0 auto;padding:16px}
-  .card{background:var(--card);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(20,30,60,.08);margin-bottom:14px}
+  .card{background:var(--card);border-radius:14px;padding:0;overflow:hidden;box-shadow:0 2px 12px rgba(20,30,60,.08);margin-bottom:14px}
   h1{font-size:1.4rem;margin:0 0 4px} h2{font-size:1.15rem;margin:0 0 8px}
   .sub{color:var(--mut);margin:0 0 12px}
   label.f{display:block;font-weight:600;margin:16px 0 6px}
@@ -33,7 +42,8 @@
 <div class="wrap">
   <div id="banner"></div>
   <div class="card">
-    <h1 id="title"></h1>
+    <div class="head"><svg viewBox='0 0 48 48' fill='none' stroke='#fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M3 18l21-10 21 10-21 10z'/><path d='M11 23v10c8 6 18 6 26 0V23'/><path d='M45 18v12'/></svg><div><h1 id="title"></h1><small>Examination Office &middot; Make-up Midterm</small></div></div>
+    <div class="pad">
     <p class="sub">Only students on the official list of a course can apply for that course.</p>
 
     <div id="s1">
@@ -93,6 +103,7 @@
     </div>
 
     <div id="err" class="err" hidden></div>
+    </div>
   </div>
 </div>
 
