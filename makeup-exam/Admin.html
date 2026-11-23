@@ -2,6 +2,7 @@
 <html>
 <head>
 <base target="_top">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--mut:#667;--pri:#2b5bd7;--err:#c62828;--ok:#1b7f3b;--line:#d9deea}
   *{box-sizing:border-box} [hidden]{display:none!important}
@@ -68,6 +69,9 @@
       <div class="grid" id="rstats"></div>
       <p class="hint">Open your Excel file, select the cells (header row included) and paste below. Column 1 must be the student number.
         If the file has a <b>Course Name</b> column it is used automatically; otherwise choose the course below.</p>
+      <label class="f">Option 1: choose the Excel file (.xlsx, .xls or .csv) &mdash; first sheet is used</label>
+      <input id="r_file" type="file" accept=".xlsx,.xls,.csv" onchange="loadFile(this)">
+      <label class="f">Option 2: or paste the rows here</label>
       <textarea id="r_text" placeholder="Paste Excel rows here" style="min-height:160px"></textarea>
       <label class="f">Course (only used when the paste has no "Course Name" column)</label>
       <select id="r_course"></select>
@@ -123,6 +127,20 @@ function saveSettings(){
   google.script.run.withSuccessHandler(()=>{ $('bs').disabled=false; msg('smsg','Saved.',true); load(); }).withFailureHandler(guard($('bs'),'smsg'))
     .adminSaveSettings(T,{title:$('s_title').value,announcement:$('s_ann').value,deadline:$('s_dl').value,open:$('s_open').checked,
       courses:$('s_courses').value,maxMb:$('s_mb').value,requireCode:$('s_code').checked});
+}
+function loadFile(inp){
+  const f=inp.files[0]; if(!f) return;
+  if(typeof XLSX==='undefined') return msg('rmsg','Excel reader could not load. Paste the rows instead.');
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const wb=XLSX.read(new Uint8Array(r.result),{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+      const text=rows.filter(x=>x.some(c=>String(c).trim()!=='')).map(x=>x.map(c=>String(c).replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');
+      $('r_text').value=text;
+      msg('rmsg','Loaded '+Math.max(0,text.split('\n').length-1)+' rows from "'+f.name+'". Check the box below, then click Import.',true);
+    }catch(e){ msg('rmsg','Could not read this file. Paste the rows instead.'); } };
+  r.onerror=()=>msg('rmsg','Could not read the file.');
+  r.readAsArrayBuffer(f);
 }
 function importRoster(){
   if(!$('r_text').value.trim()) return msg('rmsg','Paste the student rows first.');
