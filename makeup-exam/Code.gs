@@ -321,12 +321,90 @@ function adminImportRoster(t, text, defaultCourse, mode) {
     const seen = {};
     rows.forEach(r => seen[normNum_(r[0]) + '|' + String(r[3]).trim().toUpperCase()] = true);
     incoming.forEach(r => { const k = r[0] + '|' + r[3]; if (!seen[k]) { seen[k] = true; rows.push(r); } });
-    if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
-    if (sh.getMaxRows() > 1) sh.getRange(2, 1, sh.getMaxRows() - 1, 5).clearContent();
-    if (rows.length) sh.getRange(2, 1, rows.length, 5).setValues(rows);
+    writeRoster_(rows);
     const known = getSettings_().courses;
-    return { imported: touched, total: rows.length,
+    return { imported: touched, total: rows.length, stale: staleCount_(),
              unknown: Object.keys(touched).filter(c => known.indexOf(c) < 0) };
+  } finally { lock.releaseLock(); }
+}
+
+function writeRoster_(rows) {
+  const sh = sheet_('Roster');
+  if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
+  if (sh.getMaxRows() > 1) sh.getRange(2, 1, sh.getMaxRows() - 1, 5).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, 5).setValues(rows);
+}
+
+/* ---- keep applications consistent with the student lists ---- */
+function eligibleMap_() {
+  const m = {};
+  rosterRows_().forEach(r => { (m[r.num] = m[r.num] || {})[r.course] = true; });
+  return m;
+}
+function trashIds_(ids) {
+  ids.forEach(id => { try { if (id) DriveApp.getFileById(id).setTrashed(true); } catch (e) {} });
+}
+function staleCount_() {
+  const map = eligibleMap_();
+  return allApps_().filter(a => a.status === 'Active' &&
+    a.courses.split('; ').some(c => !(map[a.num] && map[a.num][c]))).length;
+}
+/** Removes (from the Sheet and Drive) whatever a student is no longer listed for. Call inside the lock. */
+function reconcile_(onlyNum) {
+  const map = eligibleMap_(), sh = sheet_('Applications');
+  let changed = 0, deleted = 0;
+  allApps_().forEach(a => {                       // highest row first, so deleteRow never shifts a row still to be visited
+    if (onlyNum && a.num !== onlyNum) return;
+    const has = map[a.num] || {};
+    if (a.status !== 'Active') {
+      if (!Object.keys(has).length) { sh.deleteRow(a.row); deleted++; }   // no longer on any list: wipe old history too
+      return;
+    }
+    const cs = a.courses.split('; '), ids = String(a.fileId).split(','), urls = String(a.url).split('\n');
+    const keep = cs.map(x => !!has[x]);
+    if (keep.every(Boolean)) return;
+    if (!keep.some(Boolean)) { trashIds_(ids); sh.deleteRow(a.row); deleted++; return; }
+    const perCourse = ids.length === cs.length && urls.length === cs.length;
+    let newIds = ids, newUrls = urls;
+    if (perCourse) {
+      trashIds_(ids.filter((x, i) => !keep[i]));
+      newIds = ids.filter((x, i) => keep[i]); newUrls = urls.filter((x, i) => keep[i]);
+    }
+    const kc = cs.filter((x, i) => keep[i]);
+    sh.getRange(a.row, 5, 1, 2).setValues([[kc.join('; '), kc.length]]);
+    sh.getRange(a.row, 7).setValue(newUrls.join('\n'));
+    sh.getRange(a.row, 10).setValue(newIds.join(','));
+    changed++;
+  });
+  return { changed: changed, deleted: deleted };
+}
+
+/** Remove one student from one course list (course = 'ALL' for every list) and clean his application data. */
+function adminRemoveStudent(t, numRaw, course) {
+  adm_(t);
+  const num = normNum_(numRaw), cc = String(course || '').trim().toUpperCase();
+  if (!validNum_(num)) throw new Error('Enter a valid student number.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sh = sheet_('Roster'), n = sh.getLastRow();
+    const rows = n > 1 ? sh.getRange(2, 1, n - 1, 5).getValues() : [];
+    const left = rows.filter(r => !(normNum_(r[0]) === num && (cc === 'ALL' || String(r[3]).trim().toUpperCase() === cc)));
+    if (left.length === rows.length) throw new Error('This student number is not on that list.');
+    writeRoster_(left);
+    const res = reconcile_(num);
+    return { removedFromLists: rows.length - left.length, applicationsChanged: res.changed, applicationsDeleted: res.deleted };
+  } finally { lock.releaseLock(); }
+}
+
+/** Compare every active application with the lists and remove anything the student is no longer listed for. */
+function adminCleanup(t) {
+  adm_(t);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (!rosterRows_().length) throw new Error('The student lists are empty. Import them first; cleaning now would delete every application.');
+    return reconcile_(null);
   } finally { lock.releaseLock(); }
 }
 

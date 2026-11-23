@@ -16,7 +16,7 @@
   button{padding:9px 16px;border:0;border-radius:8px;background:var(--pri);color:#fff;font:600 .95rem inherit;cursor:pointer;margin-top:10px}
   button.sec{background:#e9edf8;color:var(--ink)} button.danger{background:var(--err);padding:5px 10px;margin:0}
   button:disabled{opacity:.5}
-  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap} .tabs button{margin:0;background:#e9edf8;color:var(--ink)} .tabs button.on{background:var(--pri);color:#fff} .tabs button.out{margin-left:auto;background:#fff;color:var(--err);border:1px solid var(--err)}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap} .tabs button{margin:0;background:#e9edf8;color:var(--ink)} .tabs button.on{background:var(--pri);color:#fff} .warn{background:var(--err)} .tabs button.out{margin-left:auto;background:#fff;color:var(--err);border:1px solid var(--err)}
   .msg{margin-top:10px;font-weight:600} .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
   table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
   th{background:#f0f3fb} tr.w td{color:#999;text-decoration:line-through}
@@ -81,6 +81,20 @@
       <button id="br" onclick="importRoster()">Import</button>
       <div id="rmsg" class="msg"></div>
     </div>
+
+    <div id="p_ros2" class="card" hidden>
+      <h2>Remove a student from the lists</h2>
+      <p class="hint">Deletes the student from the list. If the student had applied, the application is also deleted: the row in the database Sheet and the petition files in Drive (they go to the Drive trash).
+        If only one course is removed, only that course is taken out of the application.</p>
+      <label class="f">Student number</label><input id="d_num" type="text" maxlength="20">
+      <label class="f">From</label><select id="d_course"></select>
+      <button id="bd" class="warn" onclick="removeStudent()">Remove student</button>
+      <div id="dmsg" class="msg"></div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+      <p class="hint">If you edited the Roster tab in the Sheet by hand, or replaced a list, check that applications still match the lists.</p>
+      <button id="bc" class="sec" onclick="cleanup()">Check applications against lists</button>
+      <div id="cmsg" class="msg"></div>
+    </div>
   </div>
 </div>
 
@@ -89,7 +103,7 @@ const $ = id => document.getElementById(id);
 let T = '', D = null;
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function msg(id,m,ok){ const e=$(id); e.textContent=m||''; e.className='msg '+(ok?'ok':'err'); }
-function tab(n){ ['apps','set','ros'].forEach(x=>{ $('p_'+x).hidden=x!==n; $('t_'+x).className=x===n?'on':''; }); }
+function tab(n){ ['apps','set','ros'].forEach(x=>{ $('p_'+x).hidden=x!==n; $('t_'+x).className=x===n?'on':''; }); $('p_ros2').hidden=n!=='ros'; }
 function guard(btn,id){ return e=>{ btn.disabled=false; const m=(e&&e.message)||'Error'; msg(id,m); if(/Session expired/.test(m)){ T=''; $('app').hidden=true; $('login').hidden=false; } }; }
 
 function logout(){
@@ -115,6 +129,7 @@ function render(){
   $('s_title').value=s.title; $('s_ann').value=s.announcement; $('s_dl').value=s.deadline; $('s_open').checked=s.open;
   $('s_courses').value=s.courses.join('\n'); $('s_mb').value=s.maxMb; $('s_code').checked=s.requireCode;
   $('r_course').innerHTML=s.courses.map(c=>'<option>'+esc(c)+'</option>').join('');
+  $('d_course').innerHTML='<option value="ALL">All courses</option>'+s.courses.map(c=>'<option>'+esc(c)+'</option>').join('');
   $('stats').innerHTML=s.courses.map(c=>'<div class="stat">'+esc(c)+'<br><b>'+(D.appCounts[c]||0)+'</b> applied<br><span class="hint">'+(D.rosterCounts[c]||0)+' on list</span></div>').join('');
   $('rstats').innerHTML=s.courses.map(c=>'<div class="stat">'+esc(c)+'<br><b>'+(D.rosterCounts[c]||0)+'</b> students</div>').join('');
   renderApps();
@@ -155,11 +170,25 @@ function loadFile(inp){
   r.onerror=()=>msg('rmsg','Could not read the file.');
   r.readAsArrayBuffer(f);
 }
+function removeStudent(){
+  const num=$('d_num').value.trim(); if(!num) return msg('dmsg','Enter a student number.');
+  const b=$('bd'); if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Click again to confirm'; return msg('dmsg','This also deletes the student\'s application data. Click again to confirm.'); }
+  b.dataset.sure=''; b.textContent='Remove student'; b.disabled=true;
+  google.script.run.withSuccessHandler(r=>{ b.disabled=false; $('d_num').value='';
+      msg('dmsg','Removed from '+r.removedFromLists+' list entr'+(r.removedFromLists===1?'y':'ies')+'. Applications deleted: '+r.applicationsDeleted+', changed: '+r.applicationsChanged+'.',true); load(); })
+    .withFailureHandler(guard(b,'dmsg')).adminRemoveStudent(T,num,$('d_course').value);
+}
+function cleanup(){
+  const b=$('bc'); b.disabled=true; msg('cmsg','Checking…',true);
+  google.script.run.withSuccessHandler(r=>{ b.disabled=false; msg('cmsg','Done. Applications deleted: '+r.deleted+', changed: '+r.changed+'.',true); load(); })
+    .withFailureHandler(guard(b,'cmsg')).adminCleanup(T);
+}
 function importRoster(){
   if(!$('r_text').value.trim()) return msg('rmsg','Paste the student rows first.');
   $('br').disabled=true; msg('rmsg','Importing…',true);
   google.script.run.withSuccessHandler(r=>{ $('br').disabled=false; $('r_text').value='';
       let m='Imported: '+Object.keys(r.imported).map(c=>c+' ('+r.imported[c]+' rows)').join(', ')+'. Total on lists: '+r.total+'.';
+      if(r.stale) m+=' NOTE: '+r.stale+' application(s) include a course the student is no longer listed for - use "Check applications against lists" below.';
       if(r.unknown.length) m+=' WARNING: '+r.unknown.join(', ')+' not in your course list (Settings) - those students cannot apply.';
       msg('rmsg',m,!r.unknown.length); load(); })
     .withFailureHandler(guard($('br'),'rmsg')).adminImportRoster(T,$('r_text').value,$('r_course').value,$('r_mode').value);
