@@ -87,6 +87,10 @@ function getFolder_() {
   p.setProperty('FOLDER_ID', f.getId());
   return f;
 }
+function courseFolder_(code) {
+  const root = getFolder_(), it = root.getFoldersByName(code);
+  return it.hasNext() ? it.next() : root.createFolder(code);
+}
 /** Run once from the editor: authorizes and creates the Sheet + Folder. */
 function setup() {
   Logger.log('Database: ' + db_().getUrl());
@@ -130,7 +134,7 @@ function withdrawRow_(app) {
   const sh = sheet_('Applications');
   sh.getRange(app.row, 9).setValue('Withdrawn');
   sh.getRange(app.row, 11).setValue(new Date());
-  try { if (app.fileId) DriveApp.getFileById(app.fileId).setTrashed(true); } catch (e) {}
+  String(app.fileId || '').split(',').forEach(id => { try { if (id) DriveApp.getFileById(id).setTrashed(true); } catch (e) {} });
 }
 
 /* ===================== student API ===================== */
@@ -184,7 +188,7 @@ function submitApplication(d) {
   if (!w.open) throw new Error(w.reason);
   const num = normNum_(d.studentNumber);
   const first = String(d.firstName || '').trim(), last = String(d.lastName || '').trim();
-  const courses = Array.isArray(d.courses) ? d.courses : [];
+  const courses = Array.isArray(d.courses) ? d.courses.filter((c, i, a) => a.indexOf(c) === i) : [];
   if (!validNum_(num)) throw new Error('Invalid student number.');
   authStudent_(num, d.token, s);
   if (first.length < 2 || last.length < 2 || first.length > 60 || last.length > 60) throw new Error('Invalid name or surname.');
@@ -202,10 +206,23 @@ function submitApplication(d) {
     if (findActive_(num)) throw new Error('You already have an application. Remove it first to submit again.');
     const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd_HHmmss');
     const ext = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }[d.mimeType];
-    const file = getFolder_().createFile(Utilities.newBlob(bytes, d.mimeType, num + '_Petition_' + stamp + '.' + ext));
     const ref = 'MU-' + stamp + '-' + num;
+    const ids = [], urls = [];
+    try {
+      let master = null;
+      courses.forEach((c, i) => {
+        const name = num + '_' + c + '_Petition_' + stamp + '.' + ext;   // one copy in each course folder
+        const f = i === 0 ? courseFolder_(c).createFile(Utilities.newBlob(bytes, d.mimeType, name))
+                          : master.makeCopy(name, courseFolder_(c));
+        if (i === 0) master = f;
+        ids.push(f.getId()); urls.push(f.getUrl());
+      });
+    } catch (e) {
+      ids.forEach(id => { try { DriveApp.getFileById(id).setTrashed(true); } catch (x) {} });
+      throw new Error('Could not save your petition. Please try again.');
+    }
     sheet_('Applications').appendRow([new Date(), num, safe_(first), safe_(last), courses.join('; '), courses.length,
-                                      file.getUrl(), ref, 'Active', file.getId(), '']);
+                                      urls.join('\n'), ref, 'Active', ids.join(','), '']);
     return { ref: ref };
   } finally { lock.releaseLock(); }
 }

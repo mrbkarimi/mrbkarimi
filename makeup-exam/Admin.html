@@ -114,8 +114,12 @@ function renderApps(){
   const q=$('q').value.toLowerCase(), only=$('onlyActive').checked;
   $('rows').innerHTML=D.apps.filter(a=>(!only||a.status==='Active')&&(a.num+a.name+a.courses+a.ref).toLowerCase().indexOf(q)>=0).map(a=>
     '<tr class="'+(a.status==='Active'?'':'w')+'"><td>'+esc(a.ref)+'</td><td>'+esc(a.num)+'</td><td>'+esc(a.name)+'</td><td>'+esc(a.courses)+'</td><td>'+esc(a.when)+'</td><td>'+
-    (a.status==='Active'?'<a href="'+esc(a.url)+'" target="_blank">open</a>':esc(a.status))+'</td><td>'+
+    (a.status==='Active'?links(a):esc(a.status))+'</td><td>'+
     (a.status==='Active'?'<button class="danger" data-ref="'+esc(a.ref)+'" onclick="rm(this)">Remove</button>':'')+'</td></tr>').join('')||'<tr><td colspan="7">No applications.</td></tr>';
+}
+function links(a){
+  const u=String(a.url||'').split('\n'), c=a.courses.split('; ');
+  return u.map((x,i)=>'<a href="'+esc(x)+'" target="_blank">'+esc(c[i]||'open')+'</a>').join(' &middot; ');
 }
 function rm(b){
   if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Sure?'; return; }
