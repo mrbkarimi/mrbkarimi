@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--mut:#667;--pri:#2b5bd7;--err:#c62828;--ok:#1b7f3b;--line:#d9deea}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(20,30,60,.08)}
+  h1{font-size:1.4rem;margin:0 0 4px} p.sub{color:var(--mut);margin:0 0 20px}
+  label.f{display:block;font-weight:600;margin:16px 0 6px}
+  input[type=text],input[type=file]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:520px){.row{grid-template-columns:1fr}}
+  .courses{border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+  .courses label{display:flex;gap:10px;align-items:center;padding:8px 0;cursor:pointer}
+  .courses input,.confirm input{width:18px;height:18px}
+  .hint{font-size:.85rem;color:var(--mut);margin-top:4px}
+  .confirm{display:flex;gap:10px;align-items:flex-start;margin:20px 0;padding:12px;background:#f7f9ff;border-radius:8px}
+  button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--pri);color:#fff;font:600 1rem inherit;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .err{color:var(--err);margin-top:12px;font-weight:600;display:none}
+  .ok{display:none;text-align:center;padding:12px 0} .ok h2{color:var(--ok)} .ref{font:700 1.1rem monospace;background:#eef6f0;padding:8px;border-radius:8px;display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+  <div id="formArea">
+    <h1><?= title ?></h1>
+    <p class="sub">Fill in all fields, attach your petition, and confirm.</p>
+
+    <label class="f" for="num">Student Number</label>
+    <input id="num" type="text" inputmode="numeric" autocomplete="off" maxlength="20">
+
+    <div class="row">
+      <div><label class="f" for="fn">Name</label><input id="fn" type="text" maxlength="60"></div>
+      <div><label class="f" for="ln">Surname</label><input id="ln" type="text" maxlength="60"></div>
+    </div>
+
+    <label class="f">Courses you will take the make-up exam for</label>
+    <div class="courses">
+      <? courses.forEach(function(c){ ?>
+        <label><input type="checkbox" name="course" value="<?= c ?>"> <?= c ?></label>
+      <? }) ?>
+    </div>
+
+    <label class="f" for="file">Petition (PDF, JPG or PNG, max <?= maxMb ?> MB)</label>
+    <input id="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+
+    <label class="confirm"><input id="ok" type="checkbox">
+      <span>I confirm that the information and the document I provided are correct.</span></label>
+
+    <button id="btn" onclick="submitForm()">Confirm &amp; Submit Application</button>
+    <div id="err" class="err"></div>
+  </div>
+
+  <div id="done" class="ok">
+    <h2>Application received ✔</h2>
+    <p>Keep this reference number:</p>
+    <div class="ref" id="ref"></div>
+  </div>
+</div></div>
+
+<script>
+const MAX = <?= maxMb ?> * 1024 * 1024;
+const TYPES = ['application/pdf','image/jpeg','image/png'];
+const $ = id => document.getElementById(id);
+
+function showErr(m){ const e=$('err'); e.textContent=m; e.style.display='block'; }
+
+function submitForm(){
+  $('err').style.display='none';
+  const num=$('num').value.trim(), fn=$('fn').value.trim(), ln=$('ln').value.trim();
+  const courses=[...document.querySelectorAll('input[name=course]:checked')].map(c=>c.value);
+  const f=$('file').files[0];
+
+  if(!/^[A-Za-z0-9]{4,20}$/.test(num)) return showErr('Enter a valid student number (letters/digits only).');
+  if(fn.length<2||ln.length<2) return showErr('Enter your name and surname.');
+  if(!courses.length) return showErr('Select at least one course.');
+  if(!f) return showErr('Attach your petition.');
+  if(TYPES.indexOf(f.type)<0) return showErr('Petition must be a PDF, JPG or PNG file.');
+  if(f.size>MAX) return showErr('File is too large (max <?= maxMb ?> MB).');
+  if(!$('ok').checked) return showErr('Please tick the confirmation box.');
+
+  $('btn').disabled=true; $('btn').textContent='Submitting… please wait';
+  const r=new FileReader();
+  r.onload=()=>{
+    google.script.run
+      .withSuccessHandler(res=>{
+        $('formArea').style.display='none'; $('done').style.display='block'; $('ref').textContent=res.ref;
+      })
+      .withFailureHandler(e=>{
+        $('btn').disabled=false; $('btn').textContent='Confirm & Submit Application';
+        showErr(e.message||'Submission failed. Try again.');
+      })
+      .submitApplication({studentNumber:num,firstName:fn,lastName:ln,courses:courses,
+                          mimeType:f.type,base64:r.result.split(',')[1]});
+  };
+  r.onerror=()=>showErr('Could not read the file.');
+  r.readAsDataURL(f);
+}
+</script>
+</body>
+</html>
