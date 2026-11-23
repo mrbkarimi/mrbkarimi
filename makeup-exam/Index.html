@@ -83,6 +83,7 @@
       <label class="confirm"><input id="ok" type="checkbox">
         <span>I confirm that the information and the document I provided are correct.</span></label>
       <button id="bSubmit" onclick="doSubmit()">Confirm &amp; Submit Application</button>
+      <button id="bCancel" class="sec" onclick="cancelForm()">Cancel</button>
     </div>
 
     <div id="sDone" hidden style="text-align:center">
@@ -135,6 +136,11 @@ setInterval(()=>{ if(!S.closed && INFO.deadlineMs) tick(); }, 1000);
 function closeAll(reason){ S.closed=true; INFO.reason=reason; PANES.forEach(p=>$(p).hidden=true); renderBanner(); }
 
 /* ---- flow ---- */
+function cancelForm(){
+  $('fn').value=''; $('ln').value=''; $('file').value=''; $('ok').checked=false; $('num').value='';
+  document.querySelectorAll('input[name=course]').forEach(c=>c.checked=false);
+  resetAll();
+}
 function resetAll(){ S.token=''; S.ready=null; $('code').value=''; show('s1'); }
 
 function doLookup(){
@@ -188,13 +194,13 @@ function doSubmit(){
   if(TYPES.indexOf(f.type)<0) return err('Petition must be a PDF, JPG or PNG file.');
   if(f.size>INFO.maxMb*1024*1024) return err('File is too large (max '+INFO.maxMb+' MB).');
   if(!$('ok').checked) return err('Please tick the confirmation box.');
-  busy($('bSubmit'),true,'Submitting… please wait');
+  busy($('bSubmit'),true,'Submitting… please wait'); $('bCancel').disabled=true;
   const r=new FileReader();
   r.onload=()=>google.script.run
-    .withSuccessHandler(res=>{ busy($('bSubmit'),false); $('ref').textContent=res.ref; show('sDone'); })
-    .withFailureHandler(e=>{ busy($('bSubmit'),false); err(e.message||'Submission failed.'); })
+    .withSuccessHandler(res=>{ busy($('bSubmit'),false); $('bCancel').disabled=false; $('ref').textContent=res.ref; show('sDone'); })
+    .withFailureHandler(e=>{ busy($('bSubmit'),false); $('bCancel').disabled=false; err(e.message||'Submission failed.'); })
     .submitApplication({studentNumber:S.num, token:S.token, firstName:fn, lastName:ln, courses:courses, mimeType:f.type, base64:r.result.split(',')[1]});
-  r.onerror=()=>{ busy($('bSubmit'),false); err('Could not read the file.'); };
+  r.onerror=()=>{ busy($('bSubmit'),false); $('bCancel').disabled=false; err('Could not read the file.'); };
   r.readAsDataURL(f);
 }
 
