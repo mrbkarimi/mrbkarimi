@@ -3,101 +3,203 @@
 <head>
 <base target="_top">
 <style>
-  :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--mut:#667;--pri:#2b5bd7;--err:#c62828;--ok:#1b7f3b;--line:#d9deea}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--mut:#667;--pri:#2b5bd7;--err:#c62828;--ok:#1b7f3b;--line:#d9deea;--warn:#fff4e0}
+  *{box-sizing:border-box} [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
   .wrap{max-width:640px;margin:0 auto;padding:16px}
-  .card{background:var(--card);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(20,30,60,.08)}
-  h1{font-size:1.4rem;margin:0 0 4px} p.sub{color:var(--mut);margin:0 0 20px}
+  .card{background:var(--card);border-radius:14px;padding:24px;box-shadow:0 2px 12px rgba(20,30,60,.08);margin-bottom:14px}
+  h1{font-size:1.4rem;margin:0 0 4px} h2{font-size:1.15rem;margin:0 0 8px}
+  .sub{color:var(--mut);margin:0 0 12px}
   label.f{display:block;font-weight:600;margin:16px 0 6px}
   input[type=text],input[type=file]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:520px){.row{grid-template-columns:1fr}}
   .courses{border:1px solid var(--line);border-radius:8px;padding:6px 12px}
   .courses label{display:flex;gap:10px;align-items:center;padding:8px 0;cursor:pointer}
+  .courses label.off{color:#999;cursor:not-allowed}
   .courses input,.confirm input{width:18px;height:18px}
-  .hint{font-size:.85rem;color:var(--mut);margin-top:4px}
   .confirm{display:flex;gap:10px;align-items:flex-start;margin:20px 0;padding:12px;background:#f7f9ff;border-radius:8px}
-  button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--pri);color:#fff;font:600 1rem inherit;cursor:pointer}
+  button{width:100%;padding:13px;border:0;border-radius:10px;background:var(--pri);color:#fff;font:600 1rem inherit;cursor:pointer;margin-top:8px}
+  button.sec{background:#e9edf8;color:var(--ink)} button.danger{background:var(--err)}
   button:disabled{opacity:.5;cursor:not-allowed}
-  .err{color:var(--err);margin-top:12px;font-weight:600;display:none}
-  .ok{display:none;text-align:center;padding:12px 0} .ok h2{color:var(--ok)} .ref{font:700 1.1rem monospace;background:#eef6f0;padding:8px;border-radius:8px;display:inline-block}
+  .err{color:var(--err);margin-top:12px;font-weight:600}
+  .notice{background:var(--warn);border:1px solid #f0cf94;border-radius:10px;padding:12px 14px;margin-bottom:14px}
+  .closed{background:#fdecea;border-color:#f3b4ae}
+  .deadline{font-weight:700} .count{font:700 1.05rem monospace}
+  .ref{font:700 1.1rem monospace;background:#eef6f0;padding:8px;border-radius:8px;display:inline-block}
+  .kv{margin:4px 0}.kv b{display:inline-block;min-width:110px}
 </style>
 </head>
 <body>
-<div class="wrap"><div class="card">
-  <div id="formArea">
-    <h1><?= title ?></h1>
-    <p class="sub">Fill in all fields, attach your petition, and confirm.</p>
+<div class="wrap">
+  <div id="banner"></div>
+  <div class="card">
+    <h1 id="title"></h1>
+    <p class="sub">Only students on the official list of a course can apply for that course.</p>
 
-    <label class="f" for="num">Student Number</label>
-    <input id="num" type="text" inputmode="numeric" autocomplete="off" maxlength="20">
-
-    <div class="row">
-      <div><label class="f" for="fn">Name</label><input id="fn" type="text" maxlength="60"></div>
-      <div><label class="f" for="ln">Surname</label><input id="ln" type="text" maxlength="60"></div>
+    <div id="s1">
+      <label class="f" for="num">Student Number</label>
+      <input id="num" type="text" inputmode="numeric" autocomplete="off" maxlength="20">
+      <button id="b1" onclick="doLookup()">Continue</button>
     </div>
 
-    <label class="f">Courses you will take the make-up exam for</label>
-    <div class="courses">
-      <? courses.forEach(function(c){ ?>
-        <label><input type="checkbox" name="course" value="<?= c ?>"> <?= c ?></label>
-      <? }) ?>
+    <div id="sNot" hidden>
+      <div class="notice closed"><b>Student number <span id="notNum"></span> was not found on any eligible list.</b><br>
+        You are not registered for the make-up exam of the courses below. If you think this is a mistake,
+        contact your department / course instructor and send them your student number.<br><br>
+        Courses open for application: <span id="notCourses"></span></div>
+      <button class="sec" onclick="resetAll()">Try another student number</button>
     </div>
 
-    <label class="f" for="file">Petition (PDF, JPG or PNG, max <?= maxMb ?> MB)</label>
-    <input id="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+    <div id="sCode" hidden>
+      <p>A 6-digit code was sent to <b id="masked"></b>. Enter it below.</p>
+      <input id="code" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
+      <button id="b2" onclick="doVerify()">Verify</button>
+      <button class="sec" onclick="resetAll()">Back</button>
+    </div>
 
-    <label class="confirm"><input id="ok" type="checkbox">
-      <span>I confirm that the information and the document I provided are correct.</span></label>
+    <div id="sEx" hidden>
+      <h2>You already have an application</h2>
+      <div class="kv"><b>Reference</b><span class="ref" id="exRef"></span></div>
+      <div class="kv"><b>Courses</b><span id="exCourses"></span></div>
+      <div class="kv"><b>Submitted</b><span id="exWhen"></span></div>
+      <p class="sub">Only one application per student number is allowed. To change anything, remove it and submit again (before the deadline).</p>
+      <button id="bRemove" class="danger" onclick="askRemove()">Remove my application</button>
+      <div id="rmConfirm" hidden>
+        <p><b>Are you sure? Your uploaded petition will be deleted.</b></p>
+        <button class="danger" id="bRemove2" onclick="doRemove()">Yes, remove it</button>
+        <button class="sec" onclick="$('rmConfirm').hidden=true;$('bRemove').hidden=false">Cancel</button>
+      </div>
+    </div>
 
-    <button id="btn" onclick="submitForm()">Confirm &amp; Submit Application</button>
-    <div id="err" class="err"></div>
+    <div id="s2" hidden>
+      <div class="row">
+        <div><label class="f" for="fn">Name</label><input id="fn" type="text" maxlength="60"></div>
+        <div><label class="f" for="ln">Surname</label><input id="ln" type="text" maxlength="60"></div>
+      </div>
+      <label class="f">Courses you will take the make-up exam for</label>
+      <div class="courses" id="courseBox"></div>
+      <label class="f" for="file">Petition (PDF, JPG or PNG, max <span class="mb"></span> MB)</label>
+      <input id="file" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+      <label class="confirm"><input id="ok" type="checkbox">
+        <span>I confirm that the information and the document I provided are correct.</span></label>
+      <button id="bSubmit" onclick="doSubmit()">Confirm &amp; Submit Application</button>
+    </div>
+
+    <div id="sDone" hidden style="text-align:center">
+      <h2 style="color:var(--ok)">Application received ✔</h2>
+      <p>Keep this reference number:</p><div class="ref" id="ref"></div>
+      <p class="sub">You can come back with your student number to view or remove it before the deadline.</p>
+    </div>
+
+    <div id="err" class="err" hidden></div>
   </div>
-
-  <div id="done" class="ok">
-    <h2>Application received ✔</h2>
-    <p>Keep this reference number:</p>
-    <div class="ref" id="ref"></div>
-  </div>
-</div></div>
+</div>
 
 <script>
-const MAX = <?= maxMb ?> * 1024 * 1024;
+const INFO = <?!= info ?>;
 const TYPES = ['application/pdf','image/jpeg','image/png'];
 const $ = id => document.getElementById(id);
+const PANES = ['s1','sNot','sCode','sEx','s2','sDone'];
+let S = { num:'', token:'', ready:null, closed:false };
+const skew = INFO.serverNow - Date.now();
 
-function showErr(m){ const e=$('err'); e.textContent=m; e.style.display='block'; }
+document.title = INFO.title; $('title').textContent = INFO.title;
+document.querySelectorAll('.mb').forEach(e => e.textContent = INFO.maxMb);
 
-function submitForm(){
-  $('err').style.display='none';
-  const num=$('num').value.trim(), fn=$('fn').value.trim(), ln=$('ln').value.trim();
+function show(id){ PANES.forEach(p => $(p).hidden = (p !== id)); err(''); }
+function err(m){ const e=$('err'); e.textContent=m; e.hidden=!m; }
+function busy(btn, on, txt){ btn.disabled=on; if(txt) btn.dataset.t = btn.dataset.t || btn.textContent; btn.textContent = on ? txt : (btn.dataset.t||btn.textContent); }
+function fail(btn){ return e => { if(btn) busy(btn,false); err((e && e.message) || 'Something went wrong. Try again.'); }; }
+
+/* ---- banner / deadline ---- */
+function renderBanner(){
+  const b = $('banner'); b.textContent=''; 
+  if (INFO.announcement) { const d=document.createElement('div'); d.className='notice'; d.textContent=INFO.announcement; b.appendChild(d); }
+  const d = document.createElement('div'); d.className='notice';
+  if (S.closed) { d.className='notice closed'; d.textContent = INFO.reason || 'Applications are closed.'; }
+  else if (INFO.deadlineMs) {
+    const left = INFO.deadlineMs - (Date.now()+skew);
+    d.innerHTML = '<span class="deadline">Deadline: </span><span id="dl"></span><br>Time left: <span class="count" id="cnt"></span>';
+    b.appendChild(d); $('dl').textContent = INFO.deadlineText;
+    tick(); return;
+  } else { d.textContent = 'Applications are open.'; }
+  b.appendChild(d);
+}
+function tick(){
+  const left = INFO.deadlineMs - (Date.now()+skew);
+  if (left <= 0) { closeAll('The deadline has passed. Applications are closed.'); return; }
+  const s=Math.floor(left/1000), dd=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60), ss=s%60;
+  const c=$('cnt'); if(c) c.textContent = (dd?dd+'d ':'')+h+'h '+m+'m '+ss+'s';
+}
+setInterval(()=>{ if(!S.closed && INFO.deadlineMs) tick(); }, 1000);
+function closeAll(reason){ S.closed=true; INFO.reason=reason; PANES.forEach(p=>$(p).hidden=true); renderBanner(); }
+
+/* ---- flow ---- */
+function resetAll(){ S.token=''; S.ready=null; $('code').value=''; show('s1'); }
+
+function doLookup(){
+  const num = $('num').value.trim(); err('');
+  if(!/^[A-Za-z0-9]{4,20}$/.test(num)) return err('Enter a valid student number.');
+  S.num = num.toUpperCase(); busy($('b1'),true,'Checking…');
+  google.script.run.withSuccessHandler(r=>{ busy($('b1'),false); handle(r); }).withFailureHandler(fail($('b1'))).lookupStudent(S.num);
+}
+function handle(r){
+  if (r.status==='NOT_LISTED'){ $('notNum').textContent=S.num; $('notCourses').textContent=INFO.courses.join(', '); return show('sNot'); }
+  if (r.status==='NO_EMAIL'){ show('s1'); return err('No e-mail address is registered for this student number. Contact the department.'); }
+  if (r.status==='CODE_SENT'){ $('masked').textContent=r.masked; return show('sCode'); }
+  S.token = r.token || ''; S.ready = r;
+  if (!r.open) return closeAll(r.reason);
+  r.existing ? showExisting(r) : showForm(r);
+}
+function doVerify(){
+  const code=$('code').value.trim(); if(!/^\d{6}$/.test(code)) return err('Enter the 6-digit code.');
+  busy($('b2'),true,'Verifying…');
+  google.script.run.withSuccessHandler(r=>{ busy($('b2'),false); handle(r); }).withFailureHandler(fail($('b2'))).verifyCode(S.num, code);
+}
+function showExisting(r){
+  $('exRef').textContent=r.existing.ref; $('exCourses').textContent=r.existing.courses; $('exWhen').textContent=r.existing.when;
+  $('rmConfirm').hidden=true; $('bRemove').hidden=false; show('sEx');
+}
+function askRemove(){ $('bRemove').hidden=true; $('rmConfirm').hidden=false; }
+function doRemove(){
+  busy($('bRemove2'),true,'Removing…');
+  google.script.run.withSuccessHandler(()=>{ busy($('bRemove2'),false); S.ready.existing=null; showForm(S.ready); })
+    .withFailureHandler(fail($('bRemove2'))).withdrawApplication(S.num, S.token);
+}
+function showForm(r){
+  const box=$('courseBox'); box.textContent='';
+  INFO.courses.forEach(c=>{
+    const ok = r.courses.indexOf(c)>=0;
+    const l=document.createElement('label'); if(!ok) l.className='off';
+    const i=document.createElement('input'); i.type='checkbox'; i.name='course'; i.value=c; i.disabled=!ok;
+    l.appendChild(i); l.appendChild(document.createTextNode(' '+c+(ok?'':'  (you are not on the list for this course)')));
+    box.appendChild(l);
+  });
+  $('ok').checked=false; $('file').value=''; show('s2');
+}
+function doSubmit(){
+  err('');
+  const fn=$('fn').value.trim(), ln=$('ln').value.trim();
   const courses=[...document.querySelectorAll('input[name=course]:checked')].map(c=>c.value);
   const f=$('file').files[0];
-
-  if(!/^[A-Za-z0-9]{4,20}$/.test(num)) return showErr('Enter a valid student number (letters/digits only).');
-  if(fn.length<2||ln.length<2) return showErr('Enter your name and surname.');
-  if(!courses.length) return showErr('Select at least one course.');
-  if(!f) return showErr('Attach your petition.');
-  if(TYPES.indexOf(f.type)<0) return showErr('Petition must be a PDF, JPG or PNG file.');
-  if(f.size>MAX) return showErr('File is too large (max <?= maxMb ?> MB).');
-  if(!$('ok').checked) return showErr('Please tick the confirmation box.');
-
-  $('btn').disabled=true; $('btn').textContent='Submitting… please wait';
+  if(fn.length<2||ln.length<2) return err('Enter your name and surname.');
+  if(!courses.length) return err('Select at least one course.');
+  if(!f) return err('Attach your petition.');
+  if(TYPES.indexOf(f.type)<0) return err('Petition must be a PDF, JPG or PNG file.');
+  if(f.size>INFO.maxMb*1024*1024) return err('File is too large (max '+INFO.maxMb+' MB).');
+  if(!$('ok').checked) return err('Please tick the confirmation box.');
+  busy($('bSubmit'),true,'Submitting… please wait');
   const r=new FileReader();
-  r.onload=()=>{
-    google.script.run
-      .withSuccessHandler(res=>{
-        $('formArea').style.display='none'; $('done').style.display='block'; $('ref').textContent=res.ref;
-      })
-      .withFailureHandler(e=>{
-        $('btn').disabled=false; $('btn').textContent='Confirm & Submit Application';
-        showErr(e.message||'Submission failed. Try again.');
-      })
-      .submitApplication({studentNumber:num,firstName:fn,lastName:ln,courses:courses,
-                          mimeType:f.type,base64:r.result.split(',')[1]});
-  };
-  r.onerror=()=>showErr('Could not read the file.');
+  r.onload=()=>google.script.run
+    .withSuccessHandler(res=>{ busy($('bSubmit'),false); $('ref').textContent=res.ref; show('sDone'); })
+    .withFailureHandler(e=>{ busy($('bSubmit'),false); err(e.message||'Submission failed.'); })
+    .submitApplication({studentNumber:S.num, token:S.token, firstName:fn, lastName:ln, courses:courses, mimeType:f.type, base64:r.result.split(',')[1]});
+  r.onerror=()=>{ busy($('bSubmit'),false); err('Could not read the file.'); };
   r.readAsDataURL(f);
 }
+
+S.closed = !INFO.open; renderBanner();
+if (S.closed) PANES.forEach(p=>$(p).hidden=true); else show('s1');
 </script>
 </body>
 </html>

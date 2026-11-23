@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2333;--mut:#667;--pri:#2b5bd7;--err:#c62828;--ok:#1b7f3b;--line:#d9deea}
+  *{box-sizing:border-box} [hidden]{display:none!important}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border-radius:14px;padding:20px;box-shadow:0 2px 12px rgba(20,30,60,.08);margin-bottom:14px}
+  h1{font-size:1.3rem;margin:0 0 10px} h2{font-size:1.05rem;margin:0 0 10px}
+  label.f{display:block;font-weight:600;margin:12px 0 4px}
+  input[type=text],input[type=password],input[type=number],input[type=datetime-local],textarea,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  textarea{min-height:90px;font-family:monospace;font-size:13px}
+  button{padding:9px 16px;border:0;border-radius:8px;background:var(--pri);color:#fff;font:600 .95rem inherit;cursor:pointer;margin-top:10px}
+  button.sec{background:#e9edf8;color:var(--ink)} button.danger{background:var(--err);padding:5px 10px;margin:0}
+  button:disabled{opacity:.5}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap} .tabs button{margin:0;background:#e9edf8;color:var(--ink)} .tabs button.on{background:var(--pri);color:#fff}
+  .msg{margin-top:10px;font-weight:600} .msg.err{color:var(--err)} .msg.ok{color:var(--ok)}
+  table{width:100%;border-collapse:collapse;font-size:13px} th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{background:#f0f3fb} tr.w td{color:#999;text-decoration:line-through}
+  .tw{overflow-x:auto} .chk{display:flex;gap:8px;align-items:center;margin:12px 0} .chk input{width:18px;height:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px} .stat{background:#f7f9ff;border-radius:10px;padding:10px}
+  .stat b{font-size:1.2rem} .hint{color:var(--mut);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="login">
+    <h1>Admin login</h1>
+    <input id="pw" type="password" placeholder="Admin password" onkeydown="if(event.key==='Enter')login()">
+    <button id="bl" onclick="login()">Log in</button>
+    <div id="lmsg" class="msg err"></div>
+  </div>
+
+  <div id="app" hidden>
+    <div class="tabs">
+      <button id="t_apps" class="on" onclick="tab('apps')">Applications</button>
+      <button id="t_set" onclick="tab('set')">Settings</button>
+      <button id="t_ros" onclick="tab('ros')">Student lists</button>
+    </div>
+
+    <div id="p_apps" class="card">
+      <h2>Applications <span class="hint" id="links"></span></h2>
+      <div class="grid" id="stats"></div>
+      <label class="f">Search (number, name, course)</label>
+      <input id="q" type="text" oninput="renderApps()">
+      <div class="chk"><input id="onlyActive" type="checkbox" checked onchange="renderApps()"><span>Show only active applications</span></div>
+      <div class="tw"><table><thead><tr><th>Ref</th><th>Student No</th><th>Name</th><th>Courses</th><th>Submitted</th><th>Petition</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+      <div id="amsg" class="msg"></div>
+    </div>
+
+    <div id="p_set" class="card" hidden>
+      <h2>Settings</h2>
+      <label class="f">Page title</label><input id="s_title" type="text">
+      <label class="f">Announcement shown at the top of the student page (optional)</label><textarea id="s_ann" style="font-family:inherit"></textarea>
+      <label class="f">Deadline (<span id="tz"></span> time) &mdash; leave empty for no deadline</label><input id="s_dl" type="datetime-local">
+      <div class="chk"><input id="s_open" type="checkbox"><span>Applications open (untick to close immediately, regardless of deadline)</span></div>
+      <label class="f">Courses (one per line or comma separated)</label><textarea id="s_courses"></textarea>
+      <label class="f">Max upload size in MB (1&ndash;5; 5 is the hard cap)</label><input id="s_mb" type="number" min="1" max="5" step="1">
+      <div class="chk"><input id="s_code" type="checkbox"><span>Require e-mail verification code (sent to the e-mail in the student list). Gmail accounts can send only ~100 e-mails/day.</span></div>
+      <button id="bs" onclick="saveSettings()">Save settings</button>
+      <div id="smsg" class="msg"></div>
+    </div>
+
+    <div id="p_ros" class="card" hidden>
+      <h2>Student lists (who is allowed to apply)</h2>
+      <div class="grid" id="rstats"></div>
+      <p class="hint">Open your Excel file, select the cells (header row included) and paste below. Column 1 must be the student number.
+        If the file has a <b>Course Name</b> column it is used automatically; otherwise choose the course below.</p>
+      <textarea id="r_text" placeholder="Paste Excel rows here" style="min-height:160px"></textarea>
+      <label class="f">Course (only used when the paste has no "Course Name" column)</label>
+      <select id="r_course"></select>
+      <label class="f">Mode</label>
+      <select id="r_mode"><option value="replace">Replace the list of each course found in the paste</option><option value="add">Add to existing lists</option></select>
+      <button id="br" onclick="importRoster()">Import</button>
+      <div id="rmsg" class="msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let T = '', D = null;
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function msg(id,m,ok){ const e=$(id); e.textContent=m||''; e.className='msg '+(ok?'ok':'err'); }
+function tab(n){ ['apps','set','ros'].forEach(x=>{ $('p_'+x).hidden=x!==n; $('t_'+x).className=x===n?'on':''; }); }
+function guard(btn,id){ return e=>{ btn.disabled=false; const m=(e&&e.message)||'Error'; msg(id,m); if(/Session expired/.test(m)){ T=''; $('app').hidden=true; $('login').hidden=false; } }; }
+
+function login(){
+  $('bl').disabled=true; msg('lmsg','');
+  google.script.run.withSuccessHandler(t=>{ T=t; $('bl').disabled=false; $('pw').value=''; $('login').hidden=true; $('app').hidden=false; load(); })
+    .withFailureHandler(e=>{ $('bl').disabled=false; msg('lmsg',e.message); }).adminLogin($('pw').value);
+}
+function load(){
+  google.script.run.withSuccessHandler(d=>{ D=d; render(); }).withFailureHandler(guard($('bs'),'amsg')).adminOverview(T);
+}
+function render(){
+  const s=D.settings;
+  $('links').innerHTML='&nbsp;&middot; <a href="'+esc(D.sheetUrl)+'" target="_blank">Open database sheet (download as Excel from File &gt; Download)</a> &middot; <a href="'+esc(D.folderUrl)+'" target="_blank">Open petitions folder</a>';
+  $('tz').textContent=D.tz;
+  $('s_title').value=s.title; $('s_ann').value=s.announcement; $('s_dl').value=s.deadline; $('s_open').checked=s.open;
+  $('s_courses').value=s.courses.join('\n'); $('s_mb').value=s.maxMb; $('s_code').checked=s.requireCode;
+  $('r_course').innerHTML=s.courses.map(c=>'<option>'+esc(c)+'</option>').join('');
+  $('stats').innerHTML=s.courses.map(c=>'<div class="stat">'+esc(c)+'<br><b>'+(D.appCounts[c]||0)+'</b> applied<br><span class="hint">'+(D.rosterCounts[c]||0)+' on list</span></div>').join('');
+  $('rstats').innerHTML=s.courses.map(c=>'<div class="stat">'+esc(c)+'<br><b>'+(D.rosterCounts[c]||0)+'</b> students</div>').join('');
+  renderApps();
+}
+function renderApps(){
+  const q=$('q').value.toLowerCase(), only=$('onlyActive').checked;
+  $('rows').innerHTML=D.apps.filter(a=>(!only||a.status==='Active')&&(a.num+a.name+a.courses+a.ref).toLowerCase().indexOf(q)>=0).map(a=>
+    '<tr class="'+(a.status==='Active'?'':'w')+'"><td>'+esc(a.ref)+'</td><td>'+esc(a.num)+'</td><td>'+esc(a.name)+'</td><td>'+esc(a.courses)+'</td><td>'+esc(a.when)+'</td><td>'+
+    (a.status==='Active'?'<a href="'+esc(a.url)+'" target="_blank">open</a>':esc(a.status))+'</td><td>'+
+    (a.status==='Active'?'<button class="danger" data-ref="'+esc(a.ref)+'" onclick="rm(this)">Remove</button>':'')+'</td></tr>').join('')||'<tr><td colspan="7">No applications.</td></tr>';
+}
+function rm(b){
+  if(b.dataset.sure!=='1'){ b.dataset.sure='1'; b.textContent='Sure?'; return; }
+  b.disabled=true;
+  google.script.run.withSuccessHandler(()=>{ msg('amsg','Removed.',true); load(); }).withFailureHandler(guard(b,'amsg')).adminWithdraw(T,b.dataset.ref);
+}
+function saveSettings(){
+  $('bs').disabled=true;
+  google.script.run.withSuccessHandler(()=>{ $('bs').disabled=false; msg('smsg','Saved.',true); load(); }).withFailureHandler(guard($('bs'),'smsg'))
+    .adminSaveSettings(T,{title:$('s_title').value,announcement:$('s_ann').value,deadline:$('s_dl').value,open:$('s_open').checked,
+      courses:$('s_courses').value,maxMb:$('s_mb').value,requireCode:$('s_code').checked});
+}
+function importRoster(){
+  if(!$('r_text').value.trim()) return msg('rmsg','Paste the student rows first.');
+  $('br').disabled=true; msg('rmsg','Importing…',true);
+  google.script.run.withSuccessHandler(r=>{ $('br').disabled=false; $('r_text').value='';
+      let m='Imported: '+Object.keys(r.imported).map(c=>c+' ('+r.imported[c]+' rows)').join(', ')+'. Total on lists: '+r.total+'.';
+      if(r.unknown.length) m+=' WARNING: '+r.unknown.join(', ')+' not in your course list (Settings) - those students cannot apply.';
+      msg('rmsg',m,!r.unknown.length); load(); })
+    .withFailureHandler(guard($('br'),'rmsg')).adminImportRoster(T,$('r_text').value,$('r_course').value,$('r_mode').value);
+}
+</script>
+</body>
+</html>
